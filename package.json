@@ -1,6 +1,7 @@
 {
   "name": "SnapKycVideo",
   "private": true,
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -15,12 +16,6 @@
   },
   "engines": {
     "node": ">=24"
-  },
-  "devEngines": {
-    "packageManager": {
-      "name": "npm",
-      "version": "10.9.2"
-    }
   },
   "workspaces": [
     "apps/*",
