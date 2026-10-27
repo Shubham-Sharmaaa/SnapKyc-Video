@@ -62,10 +62,19 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     const pc = createPeerConnection(streamRef.current, iceServersRef.current);
     pcRef.current = pc;
 
+    // Browsers normally supply event.streams[0], but streamless tracks are
+    // valid too. Reuse one fallback stream so audio and video are not lost.
+    const fallbackRemoteStream = new MediaStream();
     pc.ontrack = (event) => {
-      if (pcRef.current === pc) {
-        setRemoteStream(event.streams[0] ?? new MediaStream([event.track]));
+      if (pcRef.current !== pc) return;
+      if (event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+        return;
       }
+      if (!fallbackRemoteStream.getTracks().includes(event.track)) {
+        fallbackRemoteStream.addTrack(event.track);
+      }
+      setRemoteStream(fallbackRemoteStream);
     };
 
     pc.onicecandidate = (event) => {
