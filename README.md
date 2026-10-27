@@ -9,8 +9,10 @@ public page.
 
 ## Live demo
 
-- App: `https://<your-app>.vercel.app` _(fill in after deploying)_
-- Signal server health: `https://<your-signal>.onrender.com/health`
+- App: <https://snap-kyc-video-fe6b.vercel.app>
+- Check a token: <https://snap-kyc-video-fe6b.vercel.app/verify>
+- Signal server health: <https://snapkyc-signal.onrender.com/health> (free
+  tier: the first call after 15 idle minutes can take about a minute to connect)
 
 Demo staff logins (password for all: `demo1234`):
 
