@@ -238,6 +238,11 @@ wss.on("connection", (ws: WebSocket, req) => {
         if (previous) {
           joinRoom.splice(joinRoom.indexOf(previous), 1);
           socketRooms.delete(previous.ws);
+          // Say so in a message first: some proxies (Render's included) don't
+          // pass the close code through, and the client must not reconnect.
+          if (previous.ws.readyState === WebSocket.OPEN) {
+            previous.ws.send(JSON.stringify({ type: "replaced" }));
+          }
           previous.ws.close(REPLACED_CLOSE_CODE, "Replaced by a newer connection");
         }
         joinRoom.push({ ws, role });
