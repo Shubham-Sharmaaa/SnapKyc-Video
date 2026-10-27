@@ -6,8 +6,8 @@ import jwt from "jsonwebtoken";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
-const secret = process.env.secret;
-if (!secret) throw new Error("Jwt secret is not configured");
+const secret = process.env.SIGNAL_SECRET;
+if (!secret) throw new Error("SIGNAL_SECRET is not configured");
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Hello from the health route!" });
 });

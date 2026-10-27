@@ -2,8 +2,8 @@ import dotenv from "dotenv";
 dotenv.config();
 import jwt from "jsonwebtoken";
 
-const secret = process.env.secret;
-if (!secret) throw new Error("jwt secret not configured");
+const secret = process.env.SIGNAL_SECRET;
+if (!secret) throw new Error("SIGNAL_SECRET is not configured");
 function generateTestToken(role: "agent" | "customer") {
   const payload = { roomId: "room123", role };
   const token = jwt.sign(payload, secret!, {
