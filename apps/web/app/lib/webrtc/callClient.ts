@@ -15,6 +15,7 @@ export async function connectSignaling(
   roomId: string,
   role: Role,
   getCredential: (roomId: string, role: Role) => Promise<string>,
+  canResume: () => boolean,
 ) {
   const token = await getCredential(roomId, role);
   const ws = getWs();
@@ -22,13 +23,17 @@ export async function connectSignaling(
   ws.addEventListener(
     "open",
     () => {
-      ws.send(JSON.stringify({ type: "join-room", token }));
+      ws.send(JSON.stringify({ type: "join-room", token, resume: canResume() }));
     },
     { once: true },
   );
 
   return ws;
 }
+
+// Close code the signal server uses when a newer join for the same role
+// replaced this socket (another tab or device). Must match apps/signal.
+export const REPLACED_CLOSE_CODE = 4001;
 
 // Test switch: add ?relay=1 to the page URL to allow only TURN relay
 // candidates. If the call still connects, the TURN server works on its own.

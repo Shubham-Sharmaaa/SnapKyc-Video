@@ -46,6 +46,11 @@ approve it as `lead1`: the server answers `403`.
 
 - **Refresh:** refreshing either side mid-call puts it straight back into the
   same call.
+- **Signaling drops:** once connected, video flows peer-to-peer, so if the
+  WebSocket to the signal server drops (Render cuts them every few minutes),
+  the call keeps running and the client quietly rejoins with `resume: true`.
+  Nothing is renegotiated and the recording carries on. A second tab or device
+  joining as the same person takes over the call, and the first one stops.
 - **TURN only:** open the customer page as `/customer?relay=1` to allow only
   TURN relay paths. Once connected, the status line says _via TURN relay_
   (normally _direct peer-to-peer_), which proves the relay works on its own.
@@ -143,7 +148,10 @@ which is fine on one network.
 
 Render's free tier sleeps after 15 minutes idle. The call screens ping
 `/health` when they open, and the client keeps retrying the WebSocket, so the
-first call after a pause can take about a minute to connect.
+first call after a pause can take about a minute to connect. An uptime
+monitor hitting `/health` every 5 minutes keeps it awake. `render.yaml` only
+redeploys the signal server when `apps/signal` or `packages/types` change,
+because each redeploy restarts it.
 
 ## What is faked or simplified
 

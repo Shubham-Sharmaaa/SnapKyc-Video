@@ -12,6 +12,7 @@ import {
   connectionRoute,
   connectSignaling,
   createPeerConnection,
+  REPLACED_CLOSE_CODE,
   relayOnly,
   startMedia,
   stopMedia,
@@ -43,6 +44,8 @@ const noSubscription = () => () => {};
 
 // Most calls connect in a few seconds, even through TURN.
 const CONNECT_TIMEOUT_MS = 25_000;
+// Hosted WebSockets drop now and then (Render cuts idle-looking ones).
+const RECONNECT_DELAY_MS = 2_000;
 
 export function useCall({ getCredential, getIceServers }: CallOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -191,6 +194,9 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
       if (answeringRef.current) return;
       answeringRef.current = true;
       try {
+        // Every offer comes from a new agent connection. If we kept an old
+        // one through a signaling drop, it can't take the new offer.
+        if (pcRef.current?.remoteDescription) resetPeer();
         const pc = preparePeer();
         const socket = wsRef.current;
         if (
@@ -237,7 +243,9 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
         return;
 
       joiningRef.current = true; // Before the first await: prevents double camera requests.
-      setStatus("joining");
+      // Only the first join starts the camera; a signaling rejoin keeps the
+      // current status (often still "connected").
+      if (!streamRef.current) setStatus("joining");
 
       try {
         if (!streamRef.current) {
@@ -256,19 +264,27 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
         if (!activeRef.current || generation !== generationRef.current) return;
         iceServersRef.current = servers;
 
-        const socket = await connectSignaling(roomId, role, getCredential);
+        const socket = await connectSignaling(
+          roomId,
+          role,
+          getCredential,
+          () => pcRef.current?.connectionState === "connected",
+        );
         if (!activeRef.current || generation !== generationRef.current) {
           socket.close();
           return;
         }
         wsRef.current = socket;
+        let opened = false;
 
         socket.addEventListener("open", () => {
           if (!activeRef.current || generation !== generationRef.current) {
             socket.close();
             return;
           }
-          setStatus("waiting");
+          opened = true;
+          setError("");
+          if (pcRef.current?.connectionState !== "connected") setStatus("waiting");
         });
 
         socket.addEventListener("message", async (event) => {
@@ -302,12 +318,28 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
             }
 
             if (data.type === "member-left") {
+              // Only their socket dropped: their video may still be up and
+              // they rejoin within seconds, so keep the call running.
+              if (
+                data.reason === "disconnected" &&
+                pcRef.current?.connectionState === "connected"
+              ) {
+                return;
+              }
               resetPeer();
               setStatus("waiting");
               return;
             }
 
             if (data.type === "peer-joined") {
+              // The joiner kept its video connection and ours is up too:
+              // nothing to renegotiate, the call carries on.
+              if (
+                data.resume === true &&
+                pcRef.current?.connectionState === "connected"
+              ) {
+                return;
+              }
               resetPeer();
               setStatus("connecting");
               if (role === "agent") await sendOffer();
@@ -338,18 +370,38 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
           socket.close();
         });
 
-        socket.addEventListener("close", () => {
+        socket.addEventListener("close", (event) => {
           if (wsRef.current !== socket) return;
           wsRef.current = null;
-          resetPeer();
+          if (!activeRef.current || generation !== generationRef.current) return;
 
-          if (activeRef.current && generation === generationRef.current) {
-            setStatus("reconnecting");
-            retryTimerRef.current = setTimeout(() => {
-              retryTimerRef.current = null;
-              void attemptJoin(roomId, role, generation);
-            }, 4000);
+          if (event.code === REPLACED_CLOSE_CODE) {
+            // The same person joined from another tab or device; that one
+            // keeps the call, so stop here instead of fighting over it.
+            setError("This call was opened on another tab or device.");
+            setStatus("error");
+            activeRef.current = false;
+            sessionStorage.removeItem("snapkyc-active");
+            resetPeer();
+            if (streamRef.current) stopMedia(streamRef.current);
+            streamRef.current = null;
+            setLocalStream(null);
+            return;
           }
+
+          // Video flows peer-to-peer, not through the signal server, so a
+          // dropped socket doesn't end a live call: reconnect in the background.
+          if (pcRef.current?.connectionState !== "connected") {
+            resetPeer();
+            setStatus("reconnecting");
+          }
+          if (!opened) {
+            setError("Can't reach the call server. If it was asleep, it can take up to a minute to wake.");
+          }
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null;
+            void attemptJoin(roomId, role, generation);
+          }, RECONNECT_DELAY_MS);
         });
       } catch (err) {
         if (activeRef.current && generation === generationRef.current) {

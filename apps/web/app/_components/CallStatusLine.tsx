@@ -55,6 +55,7 @@ export function CallStatusLine({
         )}
         {relayOnly && <span className="badge badge-test">TURN-only test</span>}
       </p>
+      {status === "reconnecting" && error && <p className="muted small">{error}</p>}
 
       {(status === "failed" || status === "error") && (
         <div className="notice" role="alert">
