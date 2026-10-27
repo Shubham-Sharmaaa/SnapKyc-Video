@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { wakeSignalServer } from "../_utils/config";
+import { CallStatusLine } from "../_components/CallStatusLine";
 import { VideoTile } from "../_components/VideoTile";
 import { formatDate, formatTime } from "../lib/format";
 import { CONSENT_TEXT } from "../lib/rules";
@@ -229,23 +230,26 @@ function CallStep({ session }: { session: CustomerView }) {
     error,
     startCall,
     hangUp,
+    retry,
+    rejoinAfterRefresh,
     micEnabled,
     cameraEnabled,
     toggleMic,
     toggleCamera,
+    route,
+    relayOnly,
   } = useCall({ getCredential: getCustomerCredential, getIceServers });
 
   useEffect(() => wakeSignalServer(), []);
 
+  // Back into the call after a refresh. Deferred so React StrictMode's
+  // dev-only double mount does not start it twice.
+  useEffect(() => {
+    const timer = setTimeout(() => rejoinAfterRefresh(session.id, "customer"), 0);
+    return () => clearTimeout(timer);
+  }, [rejoinAfterRefresh, session.id]);
+
   const inCall = status !== "idle" && status !== "error";
-  const statusText =
-    status === "connected"
-      ? "Connected to your KYC agent"
-      : status === "waiting"
-        ? session.status === "in_call"
-          ? "An agent has picked up your session — connecting…"
-          : "Waiting for an agent to join…"
-        : status;
 
   return (
     <section className="card">
@@ -264,17 +268,27 @@ function CallStep({ session }: { session: CustomerView }) {
         <VideoTile stream={localStream} label="You" muted small placeholder="Your camera" />
       </div>
 
-      <p className="call-status">
-        {inCall ? statusText : "Join the call when you are ready."}
-        {error && <span className="error"> — {error}</span>}
-      </p>
+      <CallStatusLine
+        status={status}
+        error={error}
+        route={route}
+        relayOnly={relayOnly}
+        peer="agent"
+        idleText="Join the call when you are ready."
+        waitingText={
+          session.status === "in_call"
+            ? "An agent has picked up your session, connecting…"
+            : "Waiting for an agent to join…"
+        }
+        onRetry={retry}
+      />
 
       <div className="row">
-        {!inCall ? (
+        {status === "idle" ? (
           <button className="btn btn-primary" onClick={() => startCall(session.id, "customer")}>
             Join video call
           </button>
-        ) : (
+        ) : !inCall ? null : (
           <>
             <button className="btn btn-ghost" onClick={toggleMic}>
               {micEnabled ? "Mute mic" : "Unmute mic"}

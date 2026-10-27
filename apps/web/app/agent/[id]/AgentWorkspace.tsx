@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- local data URL / signed URL */
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CallStatusLine } from "../../_components/CallStatusLine";
 import { VideoTile } from "../../_components/VideoTile";
 import { wakeSignalServer } from "../../_utils/config";
 import { getAgentCredential, getIceServers } from "../../lib/webrtc/credentials";
@@ -64,8 +65,17 @@ export function AgentWorkspace({
 
   useEffect(() => wakeSignalServer(), []);
 
+  // Back into the call after a refresh. Deferred so React StrictMode's
+  // dev-only double mount does not start it twice.
+  const { rejoinAfterRefresh } = call;
+  useEffect(() => {
+    const timer = setTimeout(() => rejoinAfterRefresh(sessionId, "agent"), 0);
+    return () => clearTimeout(timer);
+  }, [rejoinAfterRefresh, sessionId]);
+
   // V-CIP: the call is recorded. Start as soon as the customer is connected.
-  const { start: startRecording, recording } = recorder;
+  const { start: startRecording, stop: stopRecording, recording } = recorder;
+  const recordedStreamRef = useRef<MediaStream | null>(null);
   useEffect(() => {
     if (
       call.status === "connected" &&
@@ -74,9 +84,32 @@ export function AgentWorkspace({
       !recordingSaved &&
       !saving
     ) {
+      recordedStreamRef.current = call.remoteStream;
       startRecording(call.remoteStream, call.localStream);
     }
   }, [call.status, call.remoteStream, call.localStream, recording, recordingSaved, saving, startRecording]);
+
+  // If the customer reconnects (e.g. refreshes their phone), the recorded
+  // video track has ended. Restart on the new connection so the saved file is
+  // one continuous, playable clip.
+  useEffect(() => {
+    const recorded = recordedStreamRef.current;
+    if (!recording || !call.remoteStream || !recorded || call.remoteStream === recorded) {
+      return;
+    }
+    recordedStreamRef.current = null;
+    void stopRecording().then(() =>
+      setMessage("The customer reconnected, so the recording restarted."),
+    );
+  }, [call.remoteStream, recording, stopRecording]);
+
+  // A failed call's partial recording is dropped; a new one starts once the
+  // call connects again.
+  async function retryCall() {
+    if (recording) await stopRecording();
+    setMessage("");
+    call.retry();
+  }
 
   useEffect(() => {
     if (!recording) return;
@@ -189,16 +222,21 @@ export function AgentWorkspace({
           <VideoTile stream={call.localStream} label="You" muted small placeholder="Your camera" />
         </div>
 
-        <p className="call-status">
-          {recording && (
-            <span className="rec">● REC {elapsed(recorder.startedAt, now)}</span>
-          )}{" "}
-          Call: {call.status}
-          {call.error && <span className="error"> — {call.error}</span>}
-        </p>
+        {recording && (
+          <p className="rec">● REC {elapsed(recorder.startedAt, now)}</p>
+        )}
+        <CallStatusLine
+          status={call.status}
+          error={call.error}
+          route={call.route}
+          relayOnly={call.relayOnly}
+          peer="customer"
+          idleText={recordingSaved ? "Call ended. The recording is saved." : "Not in a call yet."}
+          onRetry={retryCall}
+        />
 
         <div className="row">
-          {!inCall ? (
+          {call.status === "error" ? null : !inCall ? (
             <button
               className="btn btn-primary"
               disabled={saving}

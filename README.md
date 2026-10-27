@@ -42,6 +42,16 @@ customer declining in the Aadhaar app.
 To see maker-checker block a decision, run the call as `lead1` and then try to
 approve it as `lead1`: the server answers `403`.
 
+### Call checks
+
+- **Refresh:** refreshing either side mid-call puts it straight back into the
+  same call.
+- **TURN only:** open the customer page as `/customer?relay=1` to allow only
+  TURN relay paths. Once connected, the status line says _via TURN relay_
+  (normally _direct peer-to-peer_), which proves the relay works on its own.
+- **Failure:** if the camera is blocked, or no network path works within 25
+  seconds, the call screen explains it and offers _Retry_.
+
 ## How the V-CIP rules are enforced
 
 | Rule                   | Implementation                                                                                                                                                                                                                                  |
@@ -146,10 +156,11 @@ first call after a pause can take about a minute to connect.
   IP check.
 - **Face match** is manual: the reviewer sees the snapshot and the SnapKYC
   photo side by side.
-- **Recording happens in the agent's browser.** If the agent closes the tab
-  mid-call the recording is lost, and after a reconnect only the first
-  connection is recorded. It records the customer's video and both voices, not
-  the agent's video.
+- **Recording happens in the agent's browser.** If the agent refreshes or
+  closes the tab mid-call, the recording so far is lost (a new one starts when
+  they rejoin). If the customer reconnects, the recording restarts on the new
+  connection, so the saved clip covers the call from the last reconnect. It
+  records the customer's video and both voices, not the agent's video.
 - **KYC token uses HS256**, so only this server can verify it, and there is no
   revocation list.
 - No separate audit-log table; the session row keeps a timestamp for each step.

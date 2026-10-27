@@ -1,15 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { Role } from "@repo/types";
 import {
+  connectionRoute,
   connectSignaling,
   createPeerConnection,
+  relayOnly,
   startMedia,
   stopMedia,
+  type CallRoute,
 } from "./callClient";
 
-type CallStatus =
+export type { CallRoute };
+
+export type CallStatus =
   | "idle"
   | "joining"
   | "waiting"
@@ -28,6 +39,11 @@ const defaultIceServers: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
 ];
 
+const noSubscription = () => () => {};
+
+// Most calls connect in a few seconds, even through TURN.
+const CONNECT_TIMEOUT_MS = 25_000;
+
 export function useCall({ getCredential, getIceServers }: CallOptions) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -35,6 +51,10 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
   const [error, setError] = useState("");
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [route, setRoute] = useState<CallRoute | null>(null);
+  // Read from the URL on the client only, so server and client HTML match.
+  const relayOnlyMode = useSyncExternalStore(noSubscription, relayOnly, () => false);
+  const lastJoinRef = useRef<{ roomId: string; role: Role } | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -53,6 +73,7 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     pcRef.current = null;
     pendingCandidatesRef.current = [];
     setRemoteStream(null);
+    setRoute(null);
   }, []);
 
   const preparePeer = useCallback(() => {
@@ -95,7 +116,14 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
 
     pc.onconnectionstatechange = () => {
       if (pcRef.current !== pc) return;
-      if (pc.connectionState === "connected") setStatus("connected");
+      if (pc.connectionState === "connected") {
+        setStatus("connected");
+        void connectionRoute(pc)
+          .then((r) => {
+            if (pcRef.current === pc) setRoute(r);
+          })
+          .catch(() => {});
+      }
       if (pc.connectionState === "connecting") setStatus("connecting");
       if (pc.connectionState === "disconnected") setStatus("reconnecting");
       if (pc.connectionState === "failed") setStatus("failed");
@@ -352,6 +380,7 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     (roomId: string, role: Role) => {
       if (activeRef.current || joiningRef.current) return;
       activeRef.current = true;
+      lastJoinRef.current = { roomId, role };
       setError("");
       sessionStorage.setItem("snapkyc-room", roomId);
       sessionStorage.setItem("snapkyc-role", role);
@@ -384,6 +413,41 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     setStatus("idle");
     setError("");
   }, [resetPeer]);
+
+  // Start over in the same room after a failed connection or join error.
+  const retry = useCallback(() => {
+    const last = lastJoinRef.current;
+    if (!last) return;
+    hangUp();
+    startCall(last.roomId, last.role);
+  }, [hangUp, startCall]);
+
+  // startCall keeps the room in sessionStorage until Hang Up, so after a page
+  // refresh (or a phone reloading the tab) the user goes straight back in.
+  const rejoinAfterRefresh = useCallback(
+    (roomId: string, role: Role) => {
+      if (
+        sessionStorage.getItem("snapkyc-active") === "1" &&
+        sessionStorage.getItem("snapkyc-room") === roomId &&
+        sessionStorage.getItem("snapkyc-role") === role
+      ) {
+        startCall(roomId, role);
+      }
+    },
+    [startCall],
+  );
+
+  // When no route exists at all (e.g. a network that blocks TURN), ICE can sit
+  // in "connecting" forever instead of failing. Give up so the user sees the
+  // failure and a Retry button; a late connection still moves to "connected".
+  useEffect(() => {
+    if (status !== "connecting") return;
+    const timer = setTimeout(
+      () => setStatus((s) => (s === "connecting" ? "failed" : s)),
+      CONNECT_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [status]);
 
   useEffect(() => {
     return () => {
@@ -423,9 +487,13 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     error,
     startCall,
     hangUp,
+    retry,
+    rejoinAfterRefresh,
     toggleMic,
     toggleCamera,
     micEnabled,
     cameraEnabled,
+    route,
+    relayOnly: relayOnlyMode,
   };
 }
