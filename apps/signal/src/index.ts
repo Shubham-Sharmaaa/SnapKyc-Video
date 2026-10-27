@@ -91,14 +91,14 @@ function parseSignalingPayload(message: unknown): SignalingPayload | null {
     }
 
     if (
-      sdpMid !== null &&
+      sdpMid != null &&
       (typeof sdpMid !== "string" || sdpMid.length > 100)
     ) {
       return null;
     }
 
     if (
-      sdpMLineIndex !== null &&
+      sdpMLineIndex != null &&
       (typeof sdpMLineIndex !== "number" ||
         !Number.isInteger(sdpMLineIndex) ||
         sdpMLineIndex < 0)
@@ -115,7 +115,7 @@ function parseSignalingPayload(message: unknown): SignalingPayload | null {
     }
 
     // Normal candidates require a media section identifier.
-    if (candidate !== "" && sdpMid === null && sdpMLineIndex === null) {
+    if (candidate !== "" && sdpMid == null && sdpMLineIndex == null) {
       return null;
     }
 
@@ -123,8 +123,8 @@ function parseSignalingPayload(message: unknown): SignalingPayload | null {
       kind: "ice-candidate",
       candidate: {
         candidate,
-        sdpMid,
-        sdpMLineIndex,
+        sdpMid: sdpMid ?? null,
+        sdpMLineIndex: sdpMLineIndex ?? null,
         ...(usernameFragment !== undefined ? { usernameFragment } : {}),
       },
     };
