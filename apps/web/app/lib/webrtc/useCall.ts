@@ -33,6 +33,8 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [status, setStatus] = useState<CallStatus>("idle");
   const [error, setError] = useState("");
+  const [micEnabled, setMicEnabled] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(true);
 
   const streamRef = useRef<MediaStream | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -367,6 +369,8 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
 
     if (streamRef.current) stopMedia(streamRef.current);
     streamRef.current = null;
+    setMicEnabled(true);
+    setCameraEnabled(true);
     setLocalStream(null);
     setStatus("idle");
     setError("");
@@ -387,5 +391,32 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
     };
   }, []);
 
-  return { localStream, remoteStream, status, error, startCall, hangUp };
+  const toggleMic = useCallback(() => {
+    const track = streamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+
+    track.enabled = !track.enabled;
+    setMicEnabled(track.enabled);
+  }, []);
+
+  const toggleCamera = useCallback(() => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+
+    track.enabled = !track.enabled;
+    setCameraEnabled(track.enabled);
+  }, []);
+
+  return {
+    localStream,
+    remoteStream,
+    status,
+    error,
+    startCall,
+    hangUp,
+    toggleMic,
+    toggleCamera,
+    micEnabled,
+    cameraEnabled,
+  };
 }

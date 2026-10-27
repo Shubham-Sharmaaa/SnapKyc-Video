@@ -31,8 +31,21 @@ export default function Page() {
   const [role, setRole] = useState<Role>("agent");
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const { localStream, remoteStream, status, error, startCall, hangUp } =
-    useCall({ getCredential: getTestCredential, getIceServers });
+  const {
+    localStream,
+    remoteStream,
+    status,
+    error,
+    startCall,
+    hangUp,
+    micEnabled,
+    cameraEnabled,
+    toggleMic,
+    toggleCamera,
+  } = useCall({
+    getCredential: getTestCredential,
+    getIceServers,
+  });
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
@@ -101,7 +114,21 @@ export default function Page() {
           Join Room
         </button>
       ) : (
-        <button onClick={hangUp}>Leave Room</button>
+        <div>
+          <button onClick={hangUp}>Leave Room</button>
+
+          {localStream && (
+            <>
+              <button onClick={toggleMic}>
+                {micEnabled ? "Mute Mic" : "Unmute Mic"}
+              </button>
+
+              <button onClick={toggleCamera}>
+                {cameraEnabled ? "Turn Camera Off" : "Turn Camera On"}
+              </button>
+            </>
+          )}
+        </div>
       )}
       {status === "failed" && (
         <button
