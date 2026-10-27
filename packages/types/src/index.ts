@@ -4,6 +4,8 @@ export type RoomMessage =
   | {
       type: "join-room";
       token: string;
+      // Rejoining with the video connection still up (keep, don't renegotiate).
+      resume?: boolean;
     }
   | {
       type: "leave-room";

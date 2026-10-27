@@ -20,7 +20,12 @@ const server = app.listen(PORT, () => {
 });
 
 const wss = new WebSocketServer({ server, maxPayload: 128 * 1024 });
-const aliveSockets = new WeakMap<WebSocket, boolean>();
+// Pings without a pong; a socket is cut after MAX_MISSED_PONGS in a row.
+const missedPongs = new WeakMap<WebSocket, number>();
+const MAX_MISSED_PONGS = 2;
+// Sent to a socket replaced by a newer join for the same role, so that
+// client knows not to reconnect (see "join-room").
+const REPLACED_CLOSE_CODE = 4001;
 type WebSocketRoomMember = {
   ws: WebSocket;
   role: Role;
@@ -137,9 +142,9 @@ let rooms_map = new Map<string, WebSocketRoomMember[]>();
 const socketRooms = new Map<WebSocket, string>();
 wss.on("connection", (ws: WebSocket, req) => {
   console.log("client connected from", req.socket.remoteAddress);
-  aliveSockets.set(ws, true);
+  missedPongs.set(ws, 0);
   ws.on("pong", () => {
-    aliveSockets.set(ws, true);
+    missedPongs.set(ws, 0);
   });
   ws.on("message", (data) => {
     let parsed: unknown;
@@ -225,39 +230,32 @@ wss.on("connection", (ws: WebSocket, req) => {
             }),
           );
         }
-        const joinRoom = rooms_map.get(roomId);
-        //room exists
-        if (!joinRoom) {
-          rooms_map.set(roomId, [{ ws, role }]);
-          socketRooms.set(ws, roomId);
-        } else {
-          //check if there is already a member with the same role in the room
-          if (joinRoom.length < 2) {
-            const roomMembRole = joinRoom[0]?.role;
-            if (roomMembRole !== role) {
-              joinRoom.push({ ws, role });
-              socketRooms.set(ws, roomId);
-              joinRoom.forEach((client) => {
-                client.ws.send(
-                  JSON.stringify({
-                    type: "peer-joined",
-                    role: client.role === "agent" ? "customer" : "agent",
-                  }),
-                );
-              });
-            } else {
-              return ws.send(
-                JSON.stringify({
-                  type: "error",
-                  message: "Role already exists in room",
-                }),
-              );
-            }
-          } else {
-            return ws.send(
-              JSON.stringify({ type: "error", message: "Room is full" }),
+        const joinRoom = rooms_map.get(roomId) ?? [];
+        // One socket per role. A newer join replaces the old one: it is
+        // usually the same person whose connection dropped before the server
+        // noticed. The old socket gets a close code the client won't retry.
+        const previous = joinRoom.find((client) => client.role === role);
+        if (previous) {
+          joinRoom.splice(joinRoom.indexOf(previous), 1);
+          socketRooms.delete(previous.ws);
+          previous.ws.close(REPLACED_CLOSE_CODE, "Replaced by a newer connection");
+        }
+        joinRoom.push({ ws, role });
+        rooms_map.set(roomId, joinRoom);
+        socketRooms.set(ws, roomId);
+        if (joinRoom.length === 2) {
+          // resume: the joiner still has a live video connection, so the
+          // agent can keep it instead of renegotiating.
+          const resume = dataObj.resume === true;
+          joinRoom.forEach((client) => {
+            client.ws.send(
+              JSON.stringify({
+                type: "peer-joined",
+                role: client.role === "agent" ? "customer" : "agent",
+                resume,
+              }),
             );
-          }
+          });
         }
         break;
       case "room-message":
@@ -332,6 +330,7 @@ wss.on("connection", (ws: WebSocket, req) => {
                 client.ws.send(
                   JSON.stringify({
                     type: "member-left",
+                    reason: "left",
                     message: "A member has left the room",
                   }),
                 );
@@ -367,11 +366,14 @@ wss.on("connection", (ws: WebSocket, req) => {
       if (room.length === 0) {
         rooms_map.delete(roomId);
       } else {
+        // Their socket dropped; their video connection may still be up and
+        // they will usually rejoin within seconds.
         room.forEach((client) => {
           if (client.ws.readyState === WebSocket.OPEN) {
             client.ws.send(
               JSON.stringify({
                 type: "member-left",
+                reason: "disconnected",
                 message: "A member has left the room",
               }),
             );
@@ -384,11 +386,13 @@ wss.on("connection", (ws: WebSocket, req) => {
 const heartbeatInterval = setInterval(() => {
   wss.clients.forEach((ws) => {
     if (ws.readyState !== WebSocket.OPEN) return;
-    if (aliveSockets.get(ws) === false) {
+    // Tolerate one late pong: some proxies delay them.
+    const missed = missedPongs.get(ws) ?? 0;
+    if (missed >= MAX_MISSED_PONGS) {
       ws.terminate();
       return;
     }
-    aliveSockets.set(ws, false);
+    missedPongs.set(ws, missed + 1);
     ws.ping();
   });
 }, 30_000);
