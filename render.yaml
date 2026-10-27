@@ -1,0 +1,15 @@
+# Render blueprint for the signaling server (apps/signal).
+# The Next.js app (apps/web) is deployed on Vercel instead.
+services:
+  - type: web
+    name: snapkyc-signal
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npx turbo run build --filter=signal
+    startCommand: node apps/signal/dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: SIGNAL_SECRET
+        sync: false
