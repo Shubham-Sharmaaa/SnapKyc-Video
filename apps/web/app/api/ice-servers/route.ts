@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 
+const STUN_ONLY: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
 export async function GET() {
   const domain = process.env.METERED_DOMAIN;
   const apiKey = process.env.METERED_TURN_API_KEY;
 
+  // Without TURN the call still works on the same network (handy locally).
   if (!domain || !apiKey) {
-    return NextResponse.json(
-      { error: "TURN configuration missing" },
-      { status: 500 },
-    );
+    return NextResponse.json(STUN_ONLY, {
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 
   try {
@@ -18,7 +20,7 @@ export async function GET() {
     );
 
     if (!response.ok) {
-      throw new Error("TURN provider request failed");
+      throw new Error(`TURN provider answered ${response.status}`);
     }
 
     const iceServers = await response.json();
@@ -26,10 +28,11 @@ export async function GET() {
     return NextResponse.json(iceServers, {
       headers: { "Cache-Control": "no-store" },
     });
-  } catch {
-    return NextResponse.json(
-      { error: "Could not load TURN servers" },
-      { status: 502 },
-    );
+  } catch (err) {
+    // Degrade to STUN rather than failing the call outright.
+    console.error("Could not load TURN servers:", err);
+    return NextResponse.json(STUN_ONLY, {
+      headers: { "Cache-Control": "no-store" },
+    });
   }
 }
