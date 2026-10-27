@@ -16,13 +16,23 @@ async function getTestCredential(roomId: string, role: Role): Promise<string> {
   return data.token;
 }
 
+async function getIceServers(): Promise<RTCIceServer[]> {
+  const res = await fetch("/api/ice-servers");
+
+  if (!res.ok) {
+    throw new Error("Failed to get TURN servers");
+  }
+
+  return res.json();
+}
+
 export default function Page() {
   const [roomId, setRoomId] = useState("test-room");
   const [role, setRole] = useState<Role>("agent");
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const { localStream, remoteStream, status, error, startCall, hangUp } =
-    useCall({ getCredential: getTestCredential });
+    useCall({ getCredential: getTestCredential, getIceServers });
 
   useEffect(() => {
     if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
