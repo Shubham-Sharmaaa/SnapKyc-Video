@@ -277,6 +277,21 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
         wsRef.current = socket;
         let opened = false;
 
+        // The same person joined from another tab or device; that one keeps
+        // the call, so stop here instead of reconnecting and fighting over it.
+        const stopAsReplaced = () => {
+          setError("This call was opened on another tab or device.");
+          setStatus("error");
+          activeRef.current = false;
+          sessionStorage.removeItem("snapkyc-active");
+          wsRef.current = null;
+          socket.close();
+          resetPeer();
+          if (streamRef.current) stopMedia(streamRef.current);
+          streamRef.current = null;
+          setLocalStream(null);
+        };
+
         socket.addEventListener("open", () => {
           if (!activeRef.current || generation !== generationRef.current) {
             socket.close();
@@ -297,6 +312,11 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
 
           try {
             const data = JSON.parse(event.data);
+
+            if (data.type === "replaced") {
+              stopAsReplaced();
+              return;
+            }
 
             if (data.type === "error") {
               if (
@@ -376,16 +396,7 @@ export function useCall({ getCredential, getIceServers }: CallOptions) {
           if (!activeRef.current || generation !== generationRef.current) return;
 
           if (event.code === REPLACED_CLOSE_CODE) {
-            // The same person joined from another tab or device; that one
-            // keeps the call, so stop here instead of fighting over it.
-            setError("This call was opened on another tab or device.");
-            setStatus("error");
-            activeRef.current = false;
-            sessionStorage.removeItem("snapkyc-active");
-            resetPeer();
-            if (streamRef.current) stopMedia(streamRef.current);
-            streamRef.current = null;
-            setLocalStream(null);
+            stopAsReplaced();
             return;
           }
 
