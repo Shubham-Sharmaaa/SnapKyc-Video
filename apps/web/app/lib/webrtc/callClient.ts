@@ -1,50 +1,40 @@
-import { api, getWs } from "../../_utils/config";
+import type { Role } from "@repo/types";
+import { getWs } from "../../_utils/config";
 
 export async function startMedia() {
-  return navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
+  return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
 }
+
 export function stopMedia(stream: MediaStream) {
   stream.getTracks().forEach((track) => track.stop());
 }
+
+// The web page decides how to get a credential. In development it can call
+// /api/test-credential; the real agent/customer pages can use Task 7 auth.
 export async function connectSignaling(
   roomId: string,
-  role: "agent" | "customer",
+  role: Role,
+  getCredential: (roomId: string, role: Role) => Promise<string>,
 ) {
-  try {
-    const res = await api.post("/api/test-credential", {
-      roomId,
-      role,
-    });
-    const ws = getWs();
-    const token = res.data.token;
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "join-room", token }));
-    };
-    ws.onmessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data);
+  const token = await getCredential(roomId, role);
+  const ws = getWs();
 
-      console.log("message: ", message);
-    };
-    ws.onerror = (event) => {
-      console.error("Websocket error: ", event);
-    };
-    ws.onclose = () => {
-      console.log("Disconnected");
-    };
-    return ws;
-  } catch (error) {
-    console.log("error at connectingSignaling fn", error);
-    throw new Error("Joining failed");
-  }
+  ws.addEventListener(
+    "open",
+    () => {
+      ws.send(JSON.stringify({ type: "join-room", token }));
+    },
+    { once: true },
+  );
+
+  return ws;
 }
 
-export function createPeerConnection(stream: MediaStream) {
-  const pc = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-  });
+export function createPeerConnection(
+  stream: MediaStream,
+  iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }],
+) {
+  const pc = new RTCPeerConnection({ iceServers });
 
   stream.getTracks().forEach((track) => {
     pc.addTrack(track, stream);
