@@ -40,5 +40,8 @@
     "moduleDetection": "force",
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  // The server imports @repo/signaling at runtime, so `tsc -b` builds that
+  // package first, whatever command the host runs.
+  "references": [{ "path": "../../packages/signaling" }]
 }

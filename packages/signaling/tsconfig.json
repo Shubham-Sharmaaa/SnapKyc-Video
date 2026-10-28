@@ -2,7 +2,10 @@
   "extends": "@repo/typescript-config/base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    // Lets apps/signal reference this project, so its `tsc -b` builds it too.
+    "composite": true,
+    "incremental": true
   },
   "include": ["src"]
 }
