@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import type { StaffUser } from "../rules";
+import type { StaffUser } from "@repo/kyc";
 import { requireEnv } from "./env";
 
 const STAFF_COOKIE = "snapkyc_staff";

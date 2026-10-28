@@ -7,12 +7,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { Role } from "@repo/types";
+import { REPLACED_CLOSE_CODE, type Role } from "@repo/signaling";
 import {
   connectionRoute,
   connectSignaling,
   createPeerConnection,
-  REPLACED_CLOSE_CODE,
   relayOnly,
   startMedia,
   stopMedia,

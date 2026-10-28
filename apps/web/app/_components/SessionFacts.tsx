@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- data URI from the mock provider */
+import type { SessionRow } from "@repo/db";
 import { formatDate, formatTime, mapLink } from "../lib/format";
-import type { SessionRow } from "../lib/server/db";
 
 // Identity, consent and location details shown to both agent and reviewer.
 export function SessionFacts({ session }: { session: SessionRow }) {

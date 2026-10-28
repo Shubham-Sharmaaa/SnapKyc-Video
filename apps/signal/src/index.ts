@@ -1,8 +1,14 @@
 import express from "express";
 import dotenv from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
-import type { Role, SignalingPayload } from "@repo/types";
-import jwt from "jsonwebtoken";
+import {
+  isRecord,
+  isValidRoomId,
+  parseSignalingPayload,
+  REPLACED_CLOSE_CODE,
+  type Role,
+} from "@repo/signaling";
+import { verifyRoomToken } from "@repo/signaling/token";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -23,120 +29,10 @@ const wss = new WebSocketServer({ server, maxPayload: 128 * 1024 });
 // Pings without a pong; a socket is cut after MAX_MISSED_PONGS in a row.
 const missedPongs = new WeakMap<WebSocket, number>();
 const MAX_MISSED_PONGS = 2;
-// Sent to a socket replaced by a newer join for the same role, so that
-// client knows not to reconnect (see "join-room").
-const REPLACED_CLOSE_CODE = 4001;
 type WebSocketRoomMember = {
   ws: WebSocket;
   role: Role;
 };
-
-function isValidRoomId(roomId: unknown): roomId is string {
-  return (
-    !!roomId &&
-    typeof roomId === "string" &&
-    roomId.trim() !== "" &&
-    roomId.length <= 100 &&
-    !roomId.includes(" ") &&
-    !roomId.includes("\n") &&
-    !roomId.includes("\t") &&
-    !roomId.includes("\r")
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseSignalingPayload(message: unknown): SignalingPayload | null {
-  if (!isRecord(message)) return null;
-
-  // SDP offer and answer
-  if (message.kind === "offer" || message.kind === "answer") {
-    const description = message.description;
-
-    if (
-      !isRecord(description) ||
-      description.type !== message.kind ||
-      typeof description.sdp !== "string" ||
-      description.sdp.trim().length === 0 ||
-      description.sdp.length > 64 * 1024
-    ) {
-      return null;
-    }
-
-    if (message.kind === "offer") {
-      return {
-        kind: "offer",
-        description: {
-          type: "offer",
-          sdp: description.sdp,
-        },
-      };
-    }
-
-    return {
-      kind: "answer",
-      description: {
-        type: "answer",
-        sdp: description.sdp,
-      },
-    };
-  }
-
-  // ICE candidate
-  if (message.kind === "ice-candidate") {
-    if (!isRecord(message.candidate)) return null;
-
-    const { candidate, sdpMid, sdpMLineIndex, usernameFragment } =
-      message.candidate;
-
-    if (typeof candidate !== "string" || candidate.length > 8192) {
-      return null;
-    }
-
-    if (
-      sdpMid != null &&
-      (typeof sdpMid !== "string" || sdpMid.length > 100)
-    ) {
-      return null;
-    }
-
-    if (
-      sdpMLineIndex != null &&
-      (typeof sdpMLineIndex !== "number" ||
-        !Number.isInteger(sdpMLineIndex) ||
-        sdpMLineIndex < 0)
-    ) {
-      return null;
-    }
-
-    if (
-      usernameFragment !== undefined &&
-      usernameFragment !== null &&
-      (typeof usernameFragment !== "string" || usernameFragment.length > 256)
-    ) {
-      return null;
-    }
-
-    // Normal candidates require a media section identifier.
-    if (candidate !== "" && sdpMid == null && sdpMLineIndex == null) {
-      return null;
-    }
-
-    return {
-      kind: "ice-candidate",
-      candidate: {
-        candidate,
-        sdpMid: sdpMid ?? null,
-        sdpMLineIndex: sdpMLineIndex ?? null,
-        ...(usernameFragment !== undefined ? { usernameFragment } : {}),
-      },
-    };
-  }
-
-  return null;
-}
 
 let rooms_map = new Map<string, WebSocketRoomMember[]>();
 const socketRooms = new Map<WebSocket, string>();
@@ -172,25 +68,10 @@ wss.on("connection", (ws: WebSocket, req) => {
 
     switch (dataObj.type) {
       case "join-room":
-        if (
-          typeof dataObj.token !== "string" ||
-          dataObj.token.length === 0 ||
-          dataObj.token.length > 4096
-        ) {
-          return ws.send(
-            JSON.stringify({
-              type: "error",
-              message: "Invalid room credentials",
-            }),
-          );
-        }
-        const token = dataObj.token;
-        let verifyToken;
-        try {
-          verifyToken = jwt.verify(token, secret, {
-            algorithms: ["HS256"],
-          });
-        } catch (err) {
+        // The token names the room and role; the web app only signs one
+        // after checking who the caller is.
+        const claims = verifyRoomToken(secret, dataObj.token);
+        if (!claims) {
           return ws.send(
             JSON.stringify({
               type: "error",
@@ -198,30 +79,7 @@ wss.on("connection", (ws: WebSocket, req) => {
             }),
           );
         }
-        if (
-          typeof verifyToken !== "object" ||
-          verifyToken === null ||
-          typeof verifyToken.exp !== "number"
-        ) {
-          return ws.send(
-            JSON.stringify({
-              type: "error",
-              message: "Invalid or expired room credential",
-            }),
-          );
-        }
-        const { role, roomId } = verifyToken;
-        if (!isValidRoomId(roomId)) {
-          return ws.send(
-            JSON.stringify({ type: "error", message: "Invalid room ID" }),
-          );
-        }
-
-        if (role !== "agent" && role !== "customer") {
-          return ws.send(
-            JSON.stringify({ type: "error", message: "Invalid role" }),
-          );
-        }
+        const { role, roomId } = claims;
         if (socketRooms.has(ws)) {
           return ws.send(
             JSON.stringify({

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { canRunCall } from "../../../../lib/rules";
-import { updateSessionIf } from "../../../../lib/server/db";
-import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
 import {
   createRecordingUploadUrl,
   fileExists,
   RECORDING_TYPES,
   recordingPath,
+  updateSessionIf,
   type RecordingType,
-} from "../../../../lib/server/storage";
+} from "@repo/db";
+import { canRunCall } from "@repo/kyc";
+import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 
 function readType(value: unknown): RecordingType | null {

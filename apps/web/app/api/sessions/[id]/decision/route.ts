@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { canDecide } from "../../../../lib/rules";
-import { updateSessionIf } from "../../../../lib/server/db";
+import { updateSessionIf } from "@repo/db";
+import { canDecide } from "@repo/kyc";
+import { issueKycToken } from "@repo/kyc/token";
+import { requireEnv } from "../../../../lib/server/env";
 import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
-import { issueKycToken } from "../../../../lib/server/kycToken";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 
 // Checker step. Only this route can produce a KYC token, and canDecide blocks
@@ -30,7 +31,11 @@ export async function POST(
 
   const issued =
     decision === "approved"
-      ? issueKycToken(session.id, session.customer_name ?? "Unknown")
+      ? issueKycToken(
+          requireEnv("KYC_TOKEN_SECRET"),
+          session.id,
+          session.customer_name ?? "Unknown",
+        )
       : null;
 
   const updated = await updateSessionIf(session.id, "pending_review", {

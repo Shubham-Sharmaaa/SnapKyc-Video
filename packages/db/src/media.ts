@@ -1,4 +1,6 @@
-import { supabase } from "./db";
+import { supabase } from "./client";
+
+// Recordings and snapshots in the private Supabase Storage bucket.
 
 const BUCKET = process.env.SUPABASE_BUCKET ?? "kyc-media";
 

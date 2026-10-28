@@ -1,5 +1,5 @@
-import type { Role } from "@repo/types";
-import { getWs } from "../../_utils/config";
+import type { Role } from "@repo/signaling";
+import { getWs } from "./signalServer";
 
 export async function startMedia() {
   return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -30,11 +30,6 @@ export async function connectSignaling(
 
   return ws;
 }
-
-// Close code the signal server uses when a newer join for the same role
-// replaced this socket (another tab or device). Must match apps/signal.
-export const REPLACED_CLOSE_CODE = 4001;
-
 // Test switch: add ?relay=1 to the page URL to allow only TURN relay
 // candidates. If the call still connects, the TURN server works on its own.
 export function relayOnly() {

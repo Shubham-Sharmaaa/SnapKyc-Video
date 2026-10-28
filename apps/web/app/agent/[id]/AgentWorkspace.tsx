@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CallStatusLine } from "../../_components/CallStatusLine";
 import { VideoTile } from "../../_components/VideoTile";
-import { wakeSignalServer } from "../../_utils/config";
+import { wakeSignalServer } from "../../lib/webrtc/signalServer";
 import { getAgentCredential, getIceServers } from "../../lib/webrtc/credentials";
 import { useCall } from "../../lib/webrtc/useCall";
 import { useRecorder } from "../../lib/webrtc/useRecorder";

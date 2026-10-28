@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { KycVerifyResult } from "@repo/kyc/token";
 import { formatTime } from "../lib/format";
-import type { KycVerifyResult } from "../lib/server/kycToken";
 
 async function verifyToken(token: string): Promise<KycVerifyResult> {
   const res = await fetch("/api/verify", {

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { canRunCall } from "../../../../lib/rules";
-import { updateSessionIf } from "../../../../lib/server/db";
+import { signedViewUrl, updateSessionIf, uploadSnapshot } from "@repo/db";
+import { canRunCall } from "@repo/kyc";
 import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
-import { signedViewUrl, uploadSnapshot } from "../../../../lib/server/storage";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 
 const MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024;

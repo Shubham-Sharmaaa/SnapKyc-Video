@@ -1,7 +1,7 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { SessionStatus } from "../rules";
-import { requireEnv } from "./env";
+import type { SessionStatus } from "@repo/kyc";
+import { supabase } from "./client";
 
+// One row of kyc_sessions (see ../schema.sql).
 export type SessionRow = {
   id: string;
   status: SessionStatus;
@@ -37,19 +37,6 @@ export type SessionRow = {
 };
 
 const TABLE = "kyc_sessions";
-
-let client: SupabaseClient | null = null;
-
-// Server-only client using the service-role key. Never import this from a
-// client component.
-export function supabase() {
-  client ??= createClient(
-    requireEnv("SUPABASE_URL"),
-    requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-  return client;
-}
 
 export async function createSession(
   values: Partial<SessionRow> &

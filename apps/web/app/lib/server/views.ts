@@ -1,4 +1,4 @@
-import type { SessionRow } from "./db";
+import type { SessionRow } from "@repo/db";
 
 // What the customer's browser is allowed to see about their own session.
 export function toCustomerView(row: SessionRow) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { canRecommend } from "../../../../lib/rules";
-import { updateSessionIf } from "../../../../lib/server/db";
+import { canRecommend } from "@repo/kyc";
+import { updateSessionIf } from "@repo/db";
 import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 

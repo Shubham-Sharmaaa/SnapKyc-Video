@@ -1,0 +1,31 @@
+{
+  "name": "@repo/signaling",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The contract between the web app and the signal server: message types, payload validation and room tokens.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./token": {
+      "types": "./src/token.ts",
+      "default": "./dist/token.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch --preserveWatchOutput",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^26.6.5",
+    "typescript": "7.0.2"
+  }
+}

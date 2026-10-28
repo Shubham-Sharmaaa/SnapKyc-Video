@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { canClaim } from "../../../../lib/rules";
-import { updateSessionIf } from "../../../../lib/server/db";
+import { updateSessionIf } from "@repo/db";
+import { canClaim, pickQuestions } from "@repo/kyc";
 import { jsonError, ruleError } from "../../../../lib/server/http";
-import { pickQuestions } from "../../../../lib/server/questions";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 
 // Agent picks up a waiting customer. The conditional update means only one

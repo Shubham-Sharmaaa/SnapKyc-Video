@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { mockSnapKycLookup } from "@repo/kyc/snapkyc";
 import { jsonError, readJson } from "../../lib/server/http";
-import { mockSnapKycLookup } from "../../lib/server/mockSnapKyc";
 
 // Fake SnapKYC endpoint: POST { idNumber } -> dummy name, date of birth and
 // photo. The customer flow calls mockSnapKycLookup() directly; this route

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { canCustomerJoinCall } from "../../../../lib/rules";
+import { getSession } from "@repo/db";
+import { canCustomerJoinCall } from "@repo/kyc";
+import { signRoomToken } from "@repo/signaling/token";
 import { getCustomerSessionId } from "../../../../lib/server/auth";
-import { getSession } from "../../../../lib/server/db";
+import { requireEnv } from "../../../../lib/server/env";
 import { jsonError, ruleError } from "../../../../lib/server/http";
-import { issueCallToken } from "../../../../lib/server/signalToken";
 
 export async function POST() {
   const sessionId = await getCustomerSessionId();
@@ -13,5 +14,6 @@ export async function POST() {
   const rule = canCustomerJoinCall(session);
   if (!rule.ok) return ruleError(rule);
 
-  return NextResponse.json({ token: issueCallToken(session.id, "customer") });
+  const token = signRoomToken(requireEnv("SIGNAL_SECRET"), session.id, "customer");
+  return NextResponse.json({ token });
 }

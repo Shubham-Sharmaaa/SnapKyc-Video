@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { canRunCall } from "../../../../lib/rules";
+import { canRunCall } from "@repo/kyc";
+import { signRoomToken } from "@repo/signaling/token";
+import { requireEnv } from "../../../../lib/server/env";
 import { ruleError } from "../../../../lib/server/http";
-import { issueCallToken } from "../../../../lib/server/signalToken";
 import { loadStaffSession } from "../../../../lib/server/staffSession";
 
 export async function POST(
@@ -15,5 +16,6 @@ export async function POST(
   const rule = canRunCall(session, user);
   if (!rule.ok) return ruleError(rule);
 
-  return NextResponse.json({ token: issueCallToken(session.id, "agent") });
+  const token = signRoomToken(requireEnv("SIGNAL_SECRET"), session.id, "agent");
+  return NextResponse.json({ token });
 }

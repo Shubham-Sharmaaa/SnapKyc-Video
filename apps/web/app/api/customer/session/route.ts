@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { CONSENT_TEXT, isInIndia } from "../../../lib/rules";
+import { CONSENT_TEXT, isInIndia } from "@repo/kyc";
+import { createSession, getSession } from "@repo/db";
 import {
   clearCustomerCookie,
   getCustomerSessionId,
   setCustomerCookie,
 } from "../../../lib/server/auth";
-import { createSession, getSession } from "../../../lib/server/db";
 import { jsonError, readJson } from "../../../lib/server/http";
 import { toCustomerView } from "../../../lib/server/views";
 

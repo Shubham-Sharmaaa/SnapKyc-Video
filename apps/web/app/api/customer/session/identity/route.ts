@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { canVerifyIdentity } from "../../../../lib/rules";
+import { canVerifyIdentity } from "@repo/kyc";
+import { getSession, updateSessionIf } from "@repo/db";
+import { mockSnapKycLookup } from "@repo/kyc/snapkyc";
 import { getCustomerSessionId } from "../../../../lib/server/auth";
-import { getSession, updateSessionIf } from "../../../../lib/server/db";
 import { jsonError, readJson, ruleError } from "../../../../lib/server/http";
-import { mockSnapKycLookup } from "../../../../lib/server/mockSnapKyc";
 import { toCustomerView } from "../../../../lib/server/views";
 
 // Step 2: run the (mock) SnapKYC check and keep only the result, never the

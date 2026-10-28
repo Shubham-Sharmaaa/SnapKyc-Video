@@ -3,11 +3,11 @@
 /* eslint-disable @next/next/no-img-element -- data URIs (mock photo, QR code) */
 import { useCallback, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { wakeSignalServer } from "../_utils/config";
+import { CONSENT_TEXT } from "@repo/kyc";
+import { wakeSignalServer } from "../lib/webrtc/signalServer";
 import { CallStatusLine } from "../_components/CallStatusLine";
 import { VideoTile } from "../_components/VideoTile";
 import { formatDate, formatTime } from "../lib/format";
-import { CONSENT_TEXT } from "../lib/rules";
 import type { CustomerView } from "../lib/server/views";
 import { getCustomerCredential, getIceServers } from "../lib/webrtc/credentials";
 import { useCall } from "../lib/webrtc/useCall";

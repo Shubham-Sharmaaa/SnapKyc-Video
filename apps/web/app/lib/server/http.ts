@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { RuleResult } from "../rules";
+import type { RuleResult } from "@repo/kyc";
 
 export function jsonError(status: number, error: string) {
   return NextResponse.json({ error }, { status });

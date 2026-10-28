@@ -65,7 +65,7 @@ approve it as `lead1`: the server answers `403`.
 | Customer is in India   | Browser geolocation (lat/lng/accuracy) is required and stored with a timestamp. An `in_india` flag (bounding-box check) is shown to the agent and reviewer.                                                                                      |
 | Live call, not upload  | Two-way WebRTC. The signaling server only admits a holder of a 10-minute room token, which the API mints only for that session's customer and the agent who claimed it. One customer + one agent per room. TURN (Metered) for cross-network calls. |
 | Call is recorded       | The agent's browser records the customer's video plus both voices and uploads straight to a private Supabase Storage bucket. The reviewer plays it through a 1-hour signed URL.                                                                  |
-| Maker-checker          | `canDecide()` in [`apps/web/app/lib/rules.ts`](apps/web/app/lib/rules.ts) rejects the agent who ran the call (unit-tested), and the database has `check (reviewer_id <> agent_id)` as a second line of defence.                                    |
+| Maker-checker          | `canDecide()` in [`packages/kyc/src/rules.ts`](packages/kyc/src/rules.ts) rejects the agent who ran the call (unit-tested), and the database has `check (reviewer_id <> agent_id)` as a second line of defence.                                    |
 
 The agent also cannot recommend until a snapshot and a recording are saved, and
 every state change is a conditional update (`... where status = <expected>`), so
@@ -94,16 +94,48 @@ consented → id_verified → in_call → pending_review → approved | rejected
  (customer)  (mock SnapKYC)  (agent claims)  (agent recommends)  (reviewer decides)
 ```
 
+### How the monorepo is organized
+
 ```
-apps/web                 Next.js 16 app: all screens and API routes
-  app/lib/rules.ts       pure business rules (maker-checker etc.) + tests
-  app/lib/server/        auth, database, storage, tokens, mock SnapKYC
-  app/api/               route handlers (every rule is checked here)
-  app/lib/webrtc/        call hook, recorder hook
-  supabase/schema.sql    table, constraints, storage bucket
-apps/signal              WebSocket signaling server (JWT-gated rooms)
-packages/types           shared signaling message types
+apps/
+  web/                   Next.js 16: screens + thin API routes (cookie → load session → rule → update)
+    app/api/             route handlers
+    app/lib/server/      web-only server helpers: staff/customer cookies, HTTP helpers
+    app/lib/webrtc/      browser call code: call hook, recorder, signal-server socket
+  signal/                WebSocket signaling server: rooms + relay, nothing else
+packages/
+  signaling/             the contract between web and signal: message types, payload
+                         validation, room tokens (web signs, signal verifies)
+  kyc/                   the domain: session lifecycle rules (maker-checker…) + tests,
+                         agent questions, mock SnapKYC, KYC token
+  db/                    Supabase: kyc_sessions queries, media bucket, schema.sql
+  typescript-config/     shared tsconfig presets
+  eslint-config/         shared ESLint presets
 ```
+
+```
+web ──► @repo/kyc, @repo/db, @repo/signaling
+db ───► @repo/kyc          (rows use the domain's status type)
+signal ► @repo/signaling   (the only shared runtime code between the two apps)
+```
+
+Why packages, and why Turborepo:
+
+- **One source of truth for the web ↔ signal contract.** The room-token
+  format, the payload checks and the "replaced" close code used to be
+  copy-pasted into both apps; now both import `@repo/signaling`.
+- **Two build strategies, on purpose.** `@repo/kyc` and `@repo/db` are
+  _just-in-time_ packages: they export TypeScript and Next.js compiles them.
+  `@repo/signaling` is a _compiled_ package (`tsc` → `dist`), because the
+  signal server runs plain `node` with no bundler.
+- **The task graph.** `build` depends on `^build`, so
+  `turbo run build --filter=signal` (Render) and `--filter=web` (Vercel, via
+  `apps/web/vercel.json`) compile `@repo/signaling` first, and cache it.
+  `npm test` runs the rule and token tests inside `@repo/kyc`;
+  `npm run check-types` type-checks every package.
+- **Server-only code stays server-only.** Packages that need secrets have
+  separate entry points (`@repo/kyc/token`, `@repo/signaling/token`), so
+  browser code importing `@repo/kyc` never pulls in `jsonwebtoken`.
 
 Three separate secrets, so one leaking does not compromise the others:
 
@@ -122,14 +154,14 @@ fragment, which browsers never send to a server.
 Needs Node 22+ and a free [Supabase](https://supabase.com) project.
 
 1. `npm install`
-2. In Supabase → SQL editor, run [`apps/web/supabase/schema.sql`](apps/web/supabase/schema.sql)
+2. In Supabase → SQL editor, run [`packages/db/schema.sql`](packages/db/schema.sql)
    (creates the table and the private `kyc-media` bucket).
 3. Copy `apps/web/.env.example` → `apps/web/.env` and
    `apps/signal/.env.example` → `apps/signal/.env`, then fill them in.
    `SIGNAL_SECRET` must be the same in both. Generate secrets with
    `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 4. `npm run dev` — web on http://localhost:3000, signaling on ws://localhost:8080.
-5. `npm test` — approval-rule and token tests.
+5. `npm test` — approval-rule and token tests (in `packages/kyc`).
 
 Camera and location only work on `https://` or `localhost`, so to test with a
 phone use the deployed URL. Without TURN credentials the app falls back to STUN,
@@ -137,7 +169,7 @@ which is fine on one network.
 
 ## Deploy (free tiers)
 
-1. **Supabase** — create a project and run `schema.sql`.
+1. **Supabase** — create a project and run `packages/db/schema.sql`.
 2. **Signal server → Render** — _New → Blueprint_, pick this repo
    ([`render.yaml`](render.yaml)), set `SIGNAL_SECRET`.
 3. **Web → Vercel** — import the repo, set _Root Directory_ to `apps/web`, add
@@ -150,12 +182,12 @@ Render's free tier sleeps after 15 minutes idle. The call screens ping
 `/health` when they open, and the client keeps retrying the WebSocket, so the
 first call after a pause can take about a minute to connect. An uptime
 monitor hitting `/health` every 5 minutes keeps it awake. `render.yaml` only
-redeploys the signal server when `apps/signal` or `packages/types` change,
+redeploys the signal server when `apps/signal` or `packages/signaling` change,
 because each redeploy restarts it.
 
 ## What is faked or simplified
 
-- **SnapKYC is a mock** ([`mockSnapKyc.ts`](apps/web/app/lib/server/mockSnapKyc.ts),
+- **SnapKYC is a mock** ([`packages/kyc/src/snapkyc.ts`](packages/kyc/src/snapkyc.ts),
   also exposed at `POST /api/mock-snapkyc`). A dummy number maps to one of five
   dummy people with a generated avatar as the "photo". The number itself is
   never stored, only a reference.

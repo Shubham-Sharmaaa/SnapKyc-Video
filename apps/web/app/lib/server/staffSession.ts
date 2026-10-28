@@ -1,6 +1,6 @@
-import type { StaffUser } from "../rules";
+import { getSession, type SessionRow } from "@repo/db";
+import type { StaffUser } from "@repo/kyc";
 import { getStaff } from "./auth";
-import { getSession, type SessionRow } from "./db";
 import { isUuid, jsonError } from "./http";
 
 type Loaded =

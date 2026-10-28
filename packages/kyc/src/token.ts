@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
-import { requireEnv } from "./env";
+
+// The KYC token given to an approved customer. The caller passes the secret
+// (KYC_TOKEN_SECRET), so this module never reads the environment.
+// Server-only: import from "@repo/kyc/token", never from the browser.
 
 export const KYC_TOKEN_ISSUER = "snapkyc-video";
 export const KYC_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -19,10 +22,10 @@ export type KycVerifyResult =
   | { valid: true; claims: KycClaims }
   | { valid: false; reason: string; claims: Partial<KycClaims> | null };
 
-export function issueKycToken(sessionId: string, name: string) {
+export function issueKycToken(secret: string, sessionId: string, name: string) {
   const token = jwt.sign(
     { name, kyc_status: "verified" },
-    requireEnv("KYC_TOKEN_SECRET"),
+    secret,
     {
       algorithm: "HS256",
       issuer: KYC_TOKEN_ISSUER,
@@ -42,12 +45,12 @@ function readClaims(token: string): Partial<KycClaims> | null {
     : null;
 }
 
-export function verifyKycToken(token: string): KycVerifyResult {
+export function verifyKycToken(secret: string, token: string): KycVerifyResult {
   const trimmed = token.trim();
   if (!trimmed) return { valid: false, reason: "No token given", claims: null };
 
   try {
-    const claims = jwt.verify(trimmed, requireEnv("KYC_TOKEN_SECRET"), {
+    const claims = jwt.verify(trimmed, secret, {
       algorithms: ["HS256"],
       issuer: KYC_TOKEN_ISSUER,
     });

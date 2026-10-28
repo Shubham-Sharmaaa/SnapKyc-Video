@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { listSessions } from "@repo/db";
 import { AutoRefresh } from "../_components/AutoRefresh";
 import { StaffHeader } from "../_components/StaffHeader";
 import { StatusBadge } from "../_components/StatusBadge";
 import { formatTime } from "../lib/format";
 import { getStaff } from "../lib/server/auth";
-import { listSessions } from "../lib/server/db";
 import { ClaimButton } from "./ClaimButton";
 
 export default async function AgentQueuePage() {

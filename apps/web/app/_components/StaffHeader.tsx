@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { StaffUser } from "../lib/rules";
+import type { StaffUser } from "@repo/kyc";
 import { LogoutButton } from "./LogoutButton";
 
 export function StaffHeader({ user }: { user: StaffUser }) {

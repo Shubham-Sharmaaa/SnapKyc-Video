@@ -8,12 +8,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit",
-    "test": "tsx --test \"app/**/*.test.ts\""
+    "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@repo/types": "*",
-    "@supabase/supabase-js": "^2.118.0",
+    "@repo/db": "*",
+    "@repo/kyc": "*",
+    "@repo/signaling": "*",
     "jsonwebtoken": "^9.0.3",
     "next": "16.3.8",
     "qrcode": "^1.5.4",
@@ -29,7 +29,6 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "eslint": "10.9.1",
-    "tsx": "^4.23.15",
     "typescript": "7.0.2"
   }
 }

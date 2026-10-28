@@ -8,12 +8,14 @@ services:
     buildCommand: npm ci && npx turbo run build --filter=signal
     startCommand: node apps/signal/dist/index.js
     healthCheckPath: /health
-    # Redeploy only when the signal server or its shared types change. A
+    # Redeploy only when the signal server or a package it uses changes. A
     # redeploy restarts the server, so web-only pushes shouldn't trigger one.
+    # The build command builds @repo/signaling first (turbo's ^build).
     buildFilter:
       paths:
         - apps/signal/**
-        - packages/types/**
+        - packages/signaling/**
+        - packages/typescript-config/**
     envVars:
       - key: NODE_VERSION
         value: "24"
